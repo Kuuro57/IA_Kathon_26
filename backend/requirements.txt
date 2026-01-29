@@ -2,3 +2,8 @@ fastapi
 uvicorn
 pydantic
 langchain-openai
+chromadb
+requests
+beautifulsoup4
+langchain
+sentence-transformers
