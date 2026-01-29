@@ -1,0 +1,30 @@
+services:
+  # --- FRONTEND (Vue.js) ---
+  frontend:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./WebInterface:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - backend
+
+  # --- BACKEND (Python FastAPI) ---
+  backend:
+    build:
+      context: ./backend # Dossier où se trouve ton main.py et ton Dockerfile back
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      # On passe les clés en variables d'env pour la sécurité
+      - LLM_ENDPOINT=http://open-webui-service.vllm.svc:8080/api
+      - LLM_SECRET_KEY=sk-7724b0d24dc24753843cc5ec11125db7
+      - PYTHONUNBUFFERED=1
