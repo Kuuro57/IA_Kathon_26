@@ -1,0 +1,5 @@
+chromadb
+requests
+beautifulsoup4
+langchain
+sentence-transformers

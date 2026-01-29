@@ -1,8 +1,19 @@
 import os
+import chromadb
+from chromadb.utils import embedding_functions
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
+
+CHROMA_PATH = "./chroma_db_rgpd"
+COLLECTION_NAME = "rgpd_knowledge"
+
+client = chromadb.PersistentClient(path=CHROMA_PATH)
+emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="paraphrase-multilingual-MiniLM-L12-v2"
+)
+collection = client.get_or_create_collection(name=COLLECTION_NAME, embedding_function=emb_fn)
 
 app = FastAPI()
 
@@ -55,26 +66,47 @@ class ChatRequest(BaseModel):
 async def chat_endpoint(request: ChatRequest):
     global conversation_history
     try:
-        # 1. Ajouter le message de l'utilisateur à l'historique
-        conversation_history.append({"role": "user", "content": request.message})
+        # 1. RECHERCHE DANS CHROMADB (Le "R" de RAG)
+        # On cherche les 3 passages les plus pertinents par rapport à la question
+        results = collection.query(
+            query_texts=[request.message],
+            n_results=3
+        )
         
-        # 2. Appeler le LLM avec l'historique complet
+        # 2. CONSTRUCTION DU CONTEXTE
+        # On assemble les documents trouvés pour les donner au LLM
+        context_docs = ""
+        if results['documents'] and results['documents'][0]:
+            context_docs = "\n\n".join(results['documents'][0])
+        
+        # 3. ENRICHISSEMENT DU MESSAGE (Prompt Engineering)
+        # On demande au LLM d'utiliser uniquement ces infos
+        rag_prompt = f"""CONTEXTE OFFICIEL (CNIL) :
+        {context_docs}
+
+        QUESTION UTILISATEUR :
+        {request.message}
+
+        CONSIGNE : Réponds à la question en utilisant exclusivement le contexte ci-dessus."""
+
+        # 4. GESTION DE L'HISTORIQUE ET APPEL
+        conversation_history.append({"role": "user", "content": rag_prompt})
+        
         response = llm.invoke(conversation_history)
         
-        # 3. Ajouter la réponse de l'assistant à l'historique
+        # On nettoie l'historique pour ne pas stocker le gros bloc de contexte 
+        # mais seulement la réponse propre pour la suite de la conversation
+        conversation_history.pop() # Enlève le gros message avec contexte
+        conversation_history.append({"role": "user", "content": request.message})
         conversation_history.append({"role": "assistant", "content": response.content})
         
-        # 4. Renvoyer la réponse au format attendu par Vue.js
         return {
             "role": "assistant",
             "content": response.content
         }
     
     except Exception as e:
-        return {
-            "role": "assistant",
-            "content": f"Erreur backend : {str(e)}"
-        }
+        return {"role": "assistant", "content": f"Erreur RAG : {str(e)}"}
 
 @app.post("/clear")
 async def clear_endpoint():

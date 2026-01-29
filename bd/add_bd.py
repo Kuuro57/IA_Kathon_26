@@ -53,20 +53,38 @@ def add_to_db(docs):
         
         collection.add(documents=chunks, metadatas=metas, ids=ids)
 
+def discover_cnil_links():
+    """Trouve dynamiquement les derniers articles sur la page actu de la CNIL"""
+    base = "https://www.cnil.fr"
+    try:
+        res = requests.get(f"{base}/fr/actualites", timeout=10)
+        soup = BeautifulSoup(res.content, 'html.parser')
+        links = []
+        # On cherche tous les liens qui mènent à des actualités ou des sanctions
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if "/fr/actualite" in href or "/fr/sanction" in href:
+                full_url = base + href if href.startswith('/') else href
+                if full_url not in links: links.append(full_url)
+        return links[:10] # On prend les 10 derniers
+    except:
+        return []
+
 def mine_data():
     print("Extraction des données CNIL (Source officielle)...")
+    dynamic_links = discover_cnil_links()
 
-    cnil_links = [
+    all_links = list(set(dynamic_links + [
         "https://www.cnil.fr/fr/reglement-europeen-protection-donnees",
         "https://www.cnil.fr/fr/les-sanctions-prononcees-par-la-cnil",
         "https://www.cnil.fr/fr/la-securite-des-donnees",
         "https://www.cnil.fr/fr/principes-cles/les-bases-legales",
         "https://www.cnil.fr/fr/principes-cles/guide-de-la-securite-des-donnees-personnelles",
         "https://www.cnil.fr/fr/loi-informatique-et-libertes"
-    ]
+    ]))
     
     docs = []
-    for url in cnil_links:
+    for url in all_links:
         try:
             print(f"Analyse de : {url.split('/')[-1]}")
             res = requests.get(url, timeout=10)
