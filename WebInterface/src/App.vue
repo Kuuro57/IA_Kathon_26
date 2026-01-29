@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { Send, Bot, User, ShieldCheck } from 'lucide-vue-next'
 import MarkdownIt from 'markdown-it'
+import axios from 'axios'
 
 const md = new MarkdownIt()
 const userInput = ref('')
@@ -9,21 +10,32 @@ const messages = ref([
   { role: 'assistant', content: 'Bonjour ! Je suis votre expert **Veille RGPD**. Posez-moi une question sur les délibérations de la CNIL.' }
 ])
 const isLoading = ref(false)
-
 const sendMessage = async () => {
-  if (!userInput.value.trim()) return
-  messages.value.push({ role: 'user', content: userInput.value })
+  if (!userInput.value.trim() || isLoading.value) return
+
+  const userMessage = userInput.value
+  
+  messages.value.push({ role: 'user', content: userMessage })
+  
   userInput.value = ''
   isLoading.value = true
-  
-  //A RETIRER
-  setTimeout(() => {
-    messages.value.push({
-      role: 'assistant', 
-      content: "Selon le fonds **CNIL**, le traitement des données de santé nécessite un consentement explicite."
+
+  try {
+    const response = await axios.post('http://localhost:8000/chat', {
+      message: userMessage 
     })
+
+    messages.value.push(response.data)
+
+  } catch (error) {
+    console.error("Détails de l'erreur:", error.response?.data)
+    messages.value.push({ 
+      role: 'assistant', 
+      content: "Désolé, une erreur est survenue." 
+    })
+  } finally {
     isLoading.value = false
-  }, 1000)
+  }
 }
 </script>
 
@@ -67,7 +79,7 @@ const sendMessage = async () => {
 </template>
 
 <style scoped>
-/* Structure Globale */
+
 .app-container {
   display: flex;
   flex-direction: column;
@@ -77,7 +89,6 @@ const sendMessage = async () => {
   font-family: 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Header */
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -89,7 +100,6 @@ const sendMessage = async () => {
 .icon-box { background: linear-gradient(135deg, #4285f4, #9b51e0); padding: 5px; border-radius: 8px; display: flex; }
 .badge { font-size: 0.7rem; background: #2e2f30; padding: 4px 12px; border-radius: 20px; color: #aaa; border: 1px solid #444; }
 
-/* Zone de Messages */
 .chat-area { flex: 1; overflow-y: auto; padding: 2rem 1rem; }
 .messages-wrapper { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 2.5rem; }
 
@@ -101,7 +111,6 @@ const sendMessage = async () => {
 .content { line-height: 1.6; font-size: 15px; }
 .content :deep(strong) { color: #8ab4f8; }
 
-/* Footer & Input */
 .app-footer { padding: 1rem 1rem 2rem; }
 .input-container {
   max-width: 800px;
